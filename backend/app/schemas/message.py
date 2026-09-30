@@ -1,0 +1,25 @@
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.db.models import MessageRole
+
+
+class MessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=20_000)
+
+
+class MessageRead(BaseModel):
+    id: UUID
+    conversation_id: UUID
+    role: MessageRole
+    content: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChatTurn(BaseModel):
+    user_message: MessageRead
+    assistant_message: MessageRead

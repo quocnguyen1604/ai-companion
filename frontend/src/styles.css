@@ -1,0 +1,28 @@
+:root { font-family: 'Segoe UI', system-ui, sans-serif; color: #273238; background: #f2f5f4; font-synthesis: none; text-rendering: optimizeLegibility; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, textarea { font: inherit; }
+.app-shell { width: min(100% - 32px, 780px); min-height: 100vh; margin: 0 auto; display: flex; flex-direction: column; padding: 28px 0 18px; }
+.app-header { display: flex; align-items: center; gap: 14px; padding: 4px 8px 22px; }
+.avatar { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 16px; color: #fff; background: #347b70; font-size: 20px; font-weight: 700; }
+h1, p { margin: 0; }
+h1 { font-size: 19px; letter-spacing: -.3px; }
+.app-header p { margin-top: 3px; color: #7c8988; font-size: 13px; }
+.chat-panel { flex: 1; min-height: 500px; max-height: calc(100vh - 145px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e4eae7; border-radius: 20px; background: #fff; box-shadow: 0 8px 30px #253b3210; }
+.message-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; list-style: none; margin: 0; padding: 28px 24px; }
+.message { max-width: min(82%, 520px); padding: 12px 15px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.message--assistant { align-self: flex-start; border: 1px solid #e7ece9; border-bottom-left-radius: 5px; background: #f7f9f8; }
+.message--user { align-self: flex-end; border-bottom-right-radius: 5px; background: #e5f2ee; }
+.message__role { display: block; margin-bottom: 5px; color: #71807b; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.message p { line-height: 1.55; }
+.empty-state { flex: 1; display: grid; place-items: center; color: #929d99; font-size: 14px; }
+.typing { padding: 0 24px 12px; color: #788680; font-size: 13px; }
+.message-input { display: flex; align-items: flex-end; gap: 10px; padding: 14px; border-top: 1px solid #edf0ee; }
+.message-input textarea { flex: 1; resize: none; padding: 12px 13px; border: 1px solid #dce4e0; border-radius: 12px; outline: none; line-height: 1.4; }
+.message-input textarea:focus { border-color: #72a99b; box-shadow: 0 0 0 3px #72a99b22; }
+.message-input button { min-width: 82px; height: 44px; border: 0; border-radius: 11px; color: white; background: #347b70; font-weight: 600; cursor: pointer; }
+.message-input button:disabled { opacity: .48; cursor: default; }
+.error-banner { margin: 0 0 12px; padding: 11px 14px; border: 1px solid #efc8c5; border-radius: 10px; color: #9a3832; background: #fff2f0; font-size: 14px; }
+footer { padding: 13px 8px 0; color: #899591; text-align: center; font-size: 12px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 560px) { .app-shell { width: 100%; padding: 12px 10px; } .chat-panel { min-height: calc(100vh - 105px); max-height: none; } .message-list { padding: 20px 14px; } .message { max-width: 90%; } }
