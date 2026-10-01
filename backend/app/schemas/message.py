@@ -16,6 +16,7 @@ class MessageRead(BaseModel):
     role: MessageRole
     content: str
     created_at: datetime
+    response_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

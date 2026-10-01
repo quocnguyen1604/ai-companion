@@ -23,6 +23,7 @@ class Conversation(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+    previous_response_id: Mapped[str | None] = mapped_column(String, nullable=True)
     messages: Mapped[list["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
 
 
@@ -35,3 +36,4 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+    response_id: Mapped[str | None] = mapped_column(String, nullable=True)
