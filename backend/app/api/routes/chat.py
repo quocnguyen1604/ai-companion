@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -18,8 +19,11 @@ async def send_message(
     request: MessageCreate,
     db: Session = Depends(get_db),
     provider: AIProvider = Depends(get_ai_provider),
-) -> ChatTurn:
+) -> StreamingResponse:
     service = ConversationService(db, provider)
     if service.get_conversation(conversation_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
-    return await service.send_message(conversation_id, request.content)
+    return StreamingResponse(
+        service.send_message(conversation_id, request.content),
+        media_type="text/event-stream"
+    )

@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from sqlalchemy import select
@@ -41,12 +42,32 @@ class ConversationService:
         self.db.flush()
         history = self.list_messages(conversation_id)
         provider_history = [ProviderMessage(role=ProviderRole(message.role.value), content=message.content) for message in history]
-        response = await self.provider.generate_response(provider_history, previous_response_id=conversation.previous_response_id)
-        assistant_message = Message(conversation_id=conversation_id, role=MessageRole.ASSISTANT, content=response["content"], response_id=response["id"])
+        response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id)
+        response = None
+        final_chunk = None
+        async for chunk in response_stream:
+            if chunk.type == "response.output_text.delta" and chunk.delta is not None:
+                yield f"data: {json.dumps({
+                'type': chunk.type,
+                'delta': chunk.delta,
+                })}\n\n"
+            if chunk.type == "response.completed":
+                final_chunk = chunk
+                response = chunk.response
+                break
+        assistant_message = Message(conversation_id=conversation_id, role=MessageRole.ASSISTANT, content=response.output_text, response_id=response.id)
         self.db.add(assistant_message)
         conversation.updated_at = utc_now()
-        conversation.previous_response_id = response["id"]
+        conversation.previous_response_id = response.id
         self.db.commit()
         self.db.refresh(user_message)
         self.db.refresh(assistant_message)
-        return ChatTurn(user_message=user_message, assistant_message=assistant_message)
+        print("saved")
+        yield f"data: {json.dumps({
+            'type': final_chunk.type,
+            'turn': ChatTurn(
+                user_message=user_message,
+                assistant_message=assistant_message
+            ).model_dump(mode="json")
+        })}\n\n"
+
