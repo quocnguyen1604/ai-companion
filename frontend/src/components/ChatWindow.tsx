@@ -133,11 +133,13 @@ export function ChatWindow() {
       )}
       <section className="chat-panel" aria-label="Chat">
         <MessageList messages={visibleMessages} loading={loading} />
-        {sending && !tempAssistantMessage && (
-          <div className="typing" role="status">
-            Companion is thinking…
-          </div>
-        )}
+        {sending &&
+          tempAssistantMessage &&
+          tempAssistantMessage?.content != "" && (
+            <div className="typing" role="status">
+              Companion is thinking…
+            </div>
+          )}
         <MessageInput
           disabled={loading || sending || !conversation}
           onSend={send}

@@ -9,5 +9,6 @@ class ConversationRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     previous_response_id: str | None = None
+    previous_summary_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)

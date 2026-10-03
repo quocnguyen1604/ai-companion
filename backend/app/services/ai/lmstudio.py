@@ -1,8 +1,9 @@
-from app.services.ai.base import AIProvider, MessageRole, ProviderMessage
+from app.services.ai.base import AIProvider, MessageRole, ProviderMessage, ProviderSummary
+from app.schemas.summary import Summary
 import os
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from app.prompts.default import system_prompt
+from app.prompts.default import system_prompt, summarize_prompt, system_prompt_compacted
 
 load_dotenv()
 client = AsyncOpenAI(base_url=os.getenv("LMSTUDIO_API_URL"), api_key="lm-studio")
@@ -54,16 +55,26 @@ class LMStudioAIProvider:
             "content": response_text if response_text else "",
         }
 
-    async def stream_response(self, messages: list[ProviderMessage], previous_response_id: str | None):
+    async def stream_response(self, messages: list[ProviderMessage], previous_response_id: str | None, previous_summary: ProviderSummary | None = None):
             latest_user_message = next((message.content for message in reversed(messages) if message.role == MessageRole.USER), "")
-            request = {
-                "model": "google/gemma-4-26b-a4b-qat",
-                "instructions": system_prompt,
-                "input": latest_user_message,
-                "temperature": 0.5,
-                "reasoning": {"effort": "none"},
-                "stream": True
-            }
+            if (previous_summary is not None and previous_summary.content):
+                request = {
+                    "model": "google/gemma-4-26b-a4b-qat",
+                    "instructions": system_prompt_compacted + f"\n\nPrevious Summary: {previous_summary.content}",
+                    "input": latest_user_message,
+                    "temperature": 0.5,
+                    "reasoning": {"effort": "none"},
+                    "stream": True
+                }
+            else:
+                request = {
+                    "model": "google/gemma-4-26b-a4b-qat",
+                    "instructions": system_prompt,
+                    "input": latest_user_message,
+                    "temperature": 0.5,
+                    "reasoning": {"effort": "none"},
+                    "stream": True
+                }
             if previous_response_id is not None:
                 request["previous_response_id"] = previous_response_id
             response_stream = await client.responses.create(
@@ -100,3 +111,45 @@ class LMStudioAIProvider:
             print("==========================\n")
 
             yield final_chunk
+
+    async def generate_summary(self, messages: list[ProviderMessage], previous_summary: ProviderSummary | None) -> ProviderSummary:
+        delattr(previous_summary, 'prompt_token_count')
+        delattr(previous_summary, 'token_count')
+        input_object = {
+            "previous_summary": previous_summary if previous_summary else None,
+            "messages": messages
+        }
+
+        request = {
+                        "model": "google/gemma-4-26b-a4b-qat",
+                        "instructions": summarize_prompt,
+                        "input": input_object,
+                        "temperature": 0.5,
+                        "reasoning": {"effort": "none"},
+                        "stream": True
+                    }
+
+        response = await client.responses.create(
+            **request
+        )
+
+        print("\n=== LM STUDIO SUMMARY RESPONSE ===")
+        print(f"ID: {response.id}")
+        print(f"Model: {response.model}")
+        print(f"Status: {response.status}")
+
+        print("\n--- Usage ---")
+        print(f"Input tokens: {response.usage.input_tokens}")
+        print(f"Output tokens: {response.usage.output_tokens}")
+        print(f"Reasoning tokens: {response.usage.output_tokens_details.reasoning_tokens}")
+        print(f"Total tokens: {response.usage.total_tokens}")
+
+        print("\n--- Summary Response ---")
+        print(response.output_text)
+        print("==========================\n")
+
+        return ProviderSummary(
+            content=response.output_text,
+            prompt_token_count=response.usage.input_tokens,
+            token_count=response.usage.output_tokens
+        )

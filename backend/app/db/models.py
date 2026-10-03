@@ -24,6 +24,7 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
     previous_response_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    previous_summary_id: Mapped[UUID | None] = mapped_column(ForeignKey("summaries.id", ondelete="SET NULL"), nullable=True)
     messages: Mapped[list["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan", order_by="Message.created_at")
 
 
@@ -41,3 +42,17 @@ class Message(Base):
     sequence_number: Mapped[int] = mapped_column(nullable=False, default=0)
     token_count: Mapped[int] = mapped_column(nullable=False, default=0)
     prompt_token_count: Mapped[int] = mapped_column(nullable=False, default=0)
+
+class Summary(Base):
+    __tablename__ = "summaries"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    conversation_id: Mapped[UUID] = mapped_column(ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    start_message_id: Mapped[UUID] = mapped_column(nullable=False)
+    end_message_id: Mapped[UUID] = mapped_column(nullable=False)
+    start_sequence_number: Mapped[int] = mapped_column(nullable=False)
+    end_sequence_number: Mapped[int] = mapped_column(nullable=False)
+    total_prompt_tokens: Mapped[int] = mapped_column(nullable=False, default=0)
+    total_output_tokens: Mapped[int] = mapped_column(nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

@@ -1,4 +1,6 @@
 import json
+import os
+import dotenv
 from uuid import UUID
 
 from sqlalchemy import select
@@ -6,9 +8,12 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Conversation, Message, MessageRole, utc_now
 from app.schemas.message import ChatTurn
-from app.services.ai.base import AIProvider, MessageRole as ProviderRole, ProviderMessage
+from app.schemas.summary import Summary
+from app.services.ai.base import AIProvider, MessageRole as ProviderRole, ProviderMessage, ProviderSummary
 
 from app.tokenizers.tokenizer import Tokenizer
+
+threshold = int(os.getenv("SUMMARY_TOKEN_THRESHOLD", 6000))
 
 
 class ConversationService:
@@ -32,6 +37,9 @@ class ConversationService:
     def list_messages(self, conversation_id: UUID) -> list[Message]:
         return list(self.db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at, Message.sequence_number)))
 
+    def get_summary(self, summary_id: UUID) -> Summary | None:
+        return self.db.get(Summary, summary_id)
+
     async def send_message(self, conversation_id: UUID, content: str) -> ChatTurn:
         if self.provider is None:
             raise RuntimeError("An AI provider is required to send a message")
@@ -40,20 +48,51 @@ class ConversationService:
             raise LookupError("Conversation not found")
         
         tokenizer = Tokenizer()
+        compact_needed = False
         history = self.list_messages(conversation_id)
+        user_token_count = tokenizer.count_tokens(content)
+        if history[-1].prompt_token_count + user_token_count >= threshold:
+            compact_needed = True
+            yield f"data: {json.dumps({'type': 'context.compact.initialized'})}\n\n"
+            previous_summary = self.get_summary(conversation.previous_summary_id) if conversation.previous_summary_id else None
+            if previous_summary:
+                messages_to_summarize = history[previous_summary.end_sequence_number + 1:]
+            else:
+                messages_to_summarize = history
+                previous_summary = None
+            generated_summary = await self.provider.generate_summary(
+                [ProviderMessage(role=ProviderRole(message.role.value), content=message.content) for message in messages_to_summarize],
+                ProviderSummary(content=previous_summary.content) if previous_summary else None
+            )
+            yield f"data: {json.dumps({'type': 'context.compact.completed'})}\n\n"
+        summary = Summary(
+            conversation_id=conversation_id,
+            content=generated_summary.content,
+            start_message_id=messages_to_summarize[0].id,
+            end_message_id=messages_to_summarize[-1].id,
+            start_sequence_number=messages_to_summarize[0].sequence_number,
+            end_sequence_number=messages_to_summarize[-1].sequence_number,
+            prompt_token_count=generated_summary.prompt_token_count,
+            token_count=generated_summary.token_count,
+        )
+        self.db.add(summary)
+        self.db.flush()
         user_message = Message(conversation_id=conversation_id, 
                                role=MessageRole.USER, 
                                content=content, 
                                response_id=None, 
                                previous_message_id=history[-1].id if history else None, 
                                sequence_number=(history[-1].sequence_number + 1) if history else 0,
-                               token_count=tokenizer.count_tokens(content),
-                               prompt_token_count=(history[-1].prompt_token_count + tokenizer.count_tokens(content)) if history else tokenizer.count_tokens(content))
+                               token_count=user_token_count,
+                               prompt_token_count=(history[-1].prompt_token_count + user_token_count) if history else user_token_count)
         self.db.add(user_message)
         self.db.flush()
         history = self.list_messages(conversation_id)
         provider_history = [ProviderMessage(role=ProviderRole(message.role.value), content=message.content) for message in history]
-        response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id)
+        if compact_needed:
+            response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id, previous_summary=generated_summary)
+        else: 
+            response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id)
         response = None
         final_chunk = None
         async for chunk in response_stream:
