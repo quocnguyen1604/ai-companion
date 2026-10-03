@@ -65,18 +65,20 @@ class ConversationService:
                 ProviderSummary(content=previous_summary.content) if previous_summary else None
             )
             yield f"data: {json.dumps({'type': 'context.compact.completed'})}\n\n"
-        summary = Summary(
-            conversation_id=conversation_id,
-            content=generated_summary.content,
-            start_message_id=messages_to_summarize[0].id,
-            end_message_id=messages_to_summarize[-1].id,
-            start_sequence_number=messages_to_summarize[0].sequence_number,
-            end_sequence_number=messages_to_summarize[-1].sequence_number,
-            prompt_token_count=generated_summary.prompt_token_count,
-            token_count=generated_summary.token_count,
-        )
-        self.db.add(summary)
-        self.db.flush()
+        if compact_needed:
+            summary = Summary(
+                conversation_id=conversation_id,
+                content=generated_summary.content,
+                start_message_id=messages_to_summarize[0].id,
+                end_message_id=messages_to_summarize[-1].id,
+                start_sequence_number=messages_to_summarize[0].sequence_number,
+                end_sequence_number=messages_to_summarize[-1].sequence_number,
+                prompt_token_count=generated_summary.prompt_token_count,
+                token_count=generated_summary.token_count,
+            )
+            self.db.add(summary)
+            self.db.flush()
+            conversation.previous_summary_id = summary.id
         user_message = Message(conversation_id=conversation_id, 
                                role=MessageRole.USER, 
                                content=content, 
@@ -92,7 +94,8 @@ class ConversationService:
         if compact_needed:
             response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id, previous_summary=generated_summary)
         else: 
-            response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id)
+            previous_summary = self.get_summary(conversation.previous_summary_id) if conversation.previous_summary_id else None
+            response_stream = self.provider.stream_response(provider_history, previous_response_id=conversation.previous_response_id, previous_summary=previous_summary)
         response = None
         final_chunk = None
         async for chunk in response_stream:

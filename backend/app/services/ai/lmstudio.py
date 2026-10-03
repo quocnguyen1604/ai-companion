@@ -66,6 +66,8 @@ class LMStudioAIProvider:
                     "reasoning": {"effort": "none"},
                     "stream": True
                 }
+                print("\n=== LM STUDIO STREAMING RESPONSE WITH COMPACTED CONTEXT ===")
+                print(request)
             else:
                 request = {
                     "model": "google/gemma-4-26b-a4b-qat",
@@ -75,8 +77,8 @@ class LMStudioAIProvider:
                     "reasoning": {"effort": "none"},
                     "stream": True
                 }
-            if previous_response_id is not None:
-                request["previous_response_id"] = previous_response_id
+                if previous_response_id is not None:
+                    request["previous_response_id"] = previous_response_id
             response_stream = await client.responses.create(
                 **request
             )
@@ -127,7 +129,7 @@ class LMStudioAIProvider:
                         "instructions": summarize_prompt,
                         "input": input_object,
                         "temperature": 0.5,
-                        "reasoning": {"effort": "none"},
+                        "reasoning": {"effort": "high"},
                         "stream": False
                     }
 

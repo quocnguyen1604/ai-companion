@@ -143,7 +143,7 @@ export function ChatWindow() {
         {sending &&
           !compacting &&
           tempAssistantMessage &&
-          tempAssistantMessage?.content != "" && (
+          tempAssistantMessage?.content === "" && (
             <div className="typing" role="status">
               Companion is thinking…
             </div>
