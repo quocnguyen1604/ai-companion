@@ -68,11 +68,17 @@ async function* parseStream(
         const chunk = buffer.slice(0, boundary);
         buffer = buffer.slice(boundary + 2);
 
+        console.log("\n--- Chunk ---");
+        console.log(chunk);
+
         const data = chunk
           .split("\n")
           .filter((line) => line.startsWith("data: "))
           .map((line) => line.slice(5).trimStart())
           .join("\n");
+
+        console.log("\n--- Data ---");
+        console.log(data);
 
         if (data) yield JSON.parse(data) as StreamEvent;
 

@@ -8,6 +8,8 @@ from app.db.models import Conversation, Message, MessageRole, utc_now
 from app.schemas.message import ChatTurn
 from app.services.ai.base import AIProvider, MessageRole as ProviderRole, ProviderMessage
 
+from app.tokenizers.tokenizer import Tokenizer
+
 
 class ConversationService:
     def __init__(self, db: Session, provider: AIProvider | None = None) -> None:
@@ -28,7 +30,7 @@ class ConversationService:
         return list(self.db.scalars(select(Conversation).order_by(Conversation.updated_at.desc())))
 
     def list_messages(self, conversation_id: UUID) -> list[Message]:
-        return list(self.db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at, Message.id)))
+        return list(self.db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at, Message.sequence_number)))
 
     async def send_message(self, conversation_id: UUID, content: str) -> ChatTurn:
         if self.provider is None:
@@ -36,8 +38,17 @@ class ConversationService:
         conversation = self.db.get(Conversation, conversation_id)
         if conversation is None:
             raise LookupError("Conversation not found")
-
-        user_message = Message(conversation_id=conversation_id, role=MessageRole.USER, content=content, response_id=None)
+        
+        tokenizer = Tokenizer()
+        history = self.list_messages(conversation_id)
+        user_message = Message(conversation_id=conversation_id, 
+                               role=MessageRole.USER, 
+                               content=content, 
+                               response_id=None, 
+                               previous_message_id=history[-1].id if history else None, 
+                               sequence_number=(history[-1].sequence_number + 1) if history else 0,
+                               token_count=tokenizer.count_tokens(content),
+                               prompt_token_count=(history[-1].prompt_token_count + tokenizer.count_tokens(content)) if history else tokenizer.count_tokens(content))
         self.db.add(user_message)
         self.db.flush()
         history = self.list_messages(conversation_id)
@@ -55,7 +66,15 @@ class ConversationService:
                 final_chunk = chunk
                 response = chunk.response
                 break
-        assistant_message = Message(conversation_id=conversation_id, role=MessageRole.ASSISTANT, content=response.output_text, response_id=response.id)
+        assistant_message = Message(conversation_id=conversation_id, 
+                                    role=MessageRole.ASSISTANT, content=response.output_text, 
+                                    response_id=response.id, 
+                                    previous_message_id=user_message.id,
+                                    sequence_number=user_message.sequence_number + 1,
+                                    token_count=response.usage.output_tokens if response and response.usage 
+                                    else tokenizer.count_tokens(response.output_text),
+                                    prompt_token_count=response.usage.input_tokens if response and response.usage
+                                    else tokenizer.count_tokens(content))
         self.db.add(assistant_message)
         conversation.updated_at = utc_now()
         conversation.previous_response_id = response.id

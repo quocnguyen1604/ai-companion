@@ -37,3 +37,7 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
     response_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    previous_message_id: Mapped[UUID | None] = mapped_column(nullable=True, default=None)
+    sequence_number: Mapped[int] = mapped_column(nullable=False, default=0)
+    token_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    prompt_token_count: Mapped[int] = mapped_column(nullable=False, default=0)

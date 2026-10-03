@@ -17,6 +17,10 @@ class MessageRead(BaseModel):
     content: str
     created_at: datetime
     response_id: str | None = None
+    previous_message_id: UUID | None = None
+    sequence_number: int = 0
+    token_count: int = 0
+    prompt_token_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -54,6 +54,15 @@ export function ChatWindow() {
       content,
       conversation_id: conversation.id,
       created_at: new Date().toISOString(),
+      response_id: null,
+      previous_message_id:
+        messages.length > 0 ? messages[messages.length - 1].id : null,
+      sequence_number:
+        messages.length > 0
+          ? messages[messages.length - 1].sequence_number + 1
+          : 0,
+      token_count: 0,
+      prompt_token_count: 0,
     });
     setTempAssistantMessage({
       id: crypto.randomUUID(),
@@ -61,6 +70,14 @@ export function ChatWindow() {
       content: "",
       conversation_id: conversation.id,
       created_at: new Date().toISOString(),
+      response_id: null,
+      previous_message_id: null,
+      sequence_number:
+        messages.length > 0
+          ? messages[messages.length - 1].sequence_number + 2
+          : 0,
+      token_count: 0,
+      prompt_token_count: 0,
     });
     setSending(true);
     try {
