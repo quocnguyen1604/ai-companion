@@ -6,14 +6,14 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import Conversation, Message, MessageRole, utc_now
+from app.db.models import Conversation, Message, MessageRole, Summary, utc_now
 from app.schemas.message import ChatTurn
-from app.schemas.summary import Summary
+from app.schemas.summary import SummaryRead
 from app.services.ai.base import AIProvider, MessageRole as ProviderRole, ProviderMessage, ProviderSummary
 
 from app.tokenizers.tokenizer import Tokenizer
 
-threshold = int(os.getenv("SUMMARY_TOKEN_THRESHOLD", 6000))
+threshold = int(os.getenv("SUMMARY_TOKEN_THRESHOLD", 5000))
 
 
 class ConversationService:
@@ -53,7 +53,7 @@ class ConversationService:
         user_token_count = tokenizer.count_tokens(content)
         if history[-1].prompt_token_count + user_token_count >= threshold:
             compact_needed = True
-            yield f"data: {json.dumps({'type': 'context.compact.initialized'})}\n\n"
+            yield f"data: {json.dumps({'type': 'context.compact.initiated'})}\n\n"
             previous_summary = self.get_summary(conversation.previous_summary_id) if conversation.previous_summary_id else None
             if previous_summary:
                 messages_to_summarize = history[previous_summary.end_sequence_number + 1:]

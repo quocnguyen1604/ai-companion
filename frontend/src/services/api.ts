@@ -4,7 +4,9 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
 export type StreamEvent =
   | { type: "response.output_text.delta"; delta: string }
-  | { type: "response.completed"; turn: ChatTurn };
+  | { type: "response.completed"; turn: ChatTurn }
+  | { type: "context.compact.initiated" }
+  | { type: "context.compact.completed" };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;

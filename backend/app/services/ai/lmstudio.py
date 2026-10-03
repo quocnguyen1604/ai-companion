@@ -1,6 +1,6 @@
 from app.services.ai.base import AIProvider, MessageRole, ProviderMessage, ProviderSummary
-from app.schemas.summary import Summary
 import os
+import json
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from app.prompts.default import system_prompt, summarize_prompt, system_prompt_compacted
@@ -113,12 +113,14 @@ class LMStudioAIProvider:
             yield final_chunk
 
     async def generate_summary(self, messages: list[ProviderMessage], previous_summary: ProviderSummary | None) -> ProviderSummary:
-        delattr(previous_summary, 'prompt_token_count')
-        delattr(previous_summary, 'token_count')
-        input_object = {
+        if previous_summary is not None: 
+            delattr(previous_summary, 'prompt_token_count')
+            delattr(previous_summary, 'token_count')
+        messages = [{"role": message.role.value, "content": message.content} for message in messages]
+        input_object = json.dumps( {
             "previous_summary": previous_summary if previous_summary else None,
             "messages": messages
-        }
+        })
 
         request = {
                         "model": "google/gemma-4-26b-a4b-qat",
@@ -126,7 +128,7 @@ class LMStudioAIProvider:
                         "input": input_object,
                         "temperature": 0.5,
                         "reasoning": {"effort": "none"},
-                        "stream": True
+                        "stream": False
                     }
 
         response = await client.responses.create(

@@ -53,6 +53,6 @@ class Summary(Base):
     end_message_id: Mapped[UUID] = mapped_column(nullable=False)
     start_sequence_number: Mapped[int] = mapped_column(nullable=False)
     end_sequence_number: Mapped[int] = mapped_column(nullable=False)
-    total_prompt_tokens: Mapped[int] = mapped_column(nullable=False, default=0)
-    total_output_tokens: Mapped[int] = mapped_column(nullable=False, default=0)
+    prompt_token_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    token_count: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

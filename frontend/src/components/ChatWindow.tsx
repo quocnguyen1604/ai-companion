@@ -15,6 +15,7 @@ export function ChatWindow() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [compacting, setCompacting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -82,6 +83,12 @@ export function ChatWindow() {
     setSending(true);
     try {
       for await (const event of api.streamMessage(conversation.id, content)) {
+        if (event.type === "context.compact.initiated") {
+          setCompacting(true);
+        }
+        if (event.type === "context.compact.completed") {
+          setCompacting(false);
+        }
         if (event.type === "response.output_text.delta") {
           setTempAssistantMessage((current) =>
             current
@@ -134,12 +141,19 @@ export function ChatWindow() {
       <section className="chat-panel" aria-label="Chat">
         <MessageList messages={visibleMessages} loading={loading} />
         {sending &&
+          !compacting &&
           tempAssistantMessage &&
           tempAssistantMessage?.content != "" && (
             <div className="typing" role="status">
               Companion is thinking…
             </div>
           )}
+        {compacting && (
+          <div className="typing" role="status">
+            Companion is summarizing the conversation to make room for more
+            messages…
+          </div>
+        )}
         <MessageInput
           disabled={loading || sending || !conversation}
           onSend={send}

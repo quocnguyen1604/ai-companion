@@ -21,9 +21,9 @@ export function MessageList({ messages, loading }: MessageListProps) {
 
   return (
     <ol className="message-list" aria-label="Message history">
-      {messages.map((message) => (
-        <Message key={message.id} message={message} />
-      ))}
+      {messages.map((message) => {
+        return <Message key={message.id} message={message} />;
+      })}
     </ol>
   );
 }
