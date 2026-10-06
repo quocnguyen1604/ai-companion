@@ -4,6 +4,7 @@ import json
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from app.prompts.default import system_prompt, summarize_prompt, system_prompt_compacted
+from app.tools.memory import retrieve_memory
 
 load_dotenv()
 client = AsyncOpenAI(base_url=os.getenv("LMSTUDIO_API_URL"), api_key="lm-studio")
@@ -56,45 +57,88 @@ class LMStudioAIProvider:
         }
 
     async def stream_response(self, messages: list[ProviderMessage], previous_response_id: str | None, previous_summary: ProviderSummary | None = None):
+            temp_response_id = previous_response_id
             latest_user_message = next((message.content for message in reversed(messages) if message.role == MessageRole.USER), "")
-            if (previous_summary is not None and previous_summary.content):
-                request = {
-                    "model": "google/gemma-4-26b-a4b-qat",
-                    "instructions": system_prompt_compacted + f"\n\nPrevious Summary: {previous_summary.content}",
-                    "input": latest_user_message,
-                    "temperature": 0.5,
-                    "reasoning": {"effort": "none"},
-                    "stream": True
-                }
-                print("\n=== LM STUDIO STREAMING RESPONSE WITH COMPACTED CONTEXT ===")
-                print(request)
-            else:
-                request = {
-                    "model": "google/gemma-4-26b-a4b-qat",
-                    "instructions": system_prompt,
-                    "input": latest_user_message,
-                    "temperature": 0.5,
-                    "reasoning": {"effort": "none"},
-                    "stream": True
-                }
-                if previous_response_id is not None:
-                    request["previous_response_id"] = previous_response_id
-            response_stream = await client.responses.create(
-                **request
-            )
-    
-            final_response = None
-            final_chunk = None
+            inputs = [{
+                "role": "user",
+                "content": latest_user_message
+            }]
+            tools = [retrieve_memory]
+            while True:
+                tool_calls = {}
+                if (previous_summary is not None and previous_summary.content):
+                    request = {
+                        "model": "google/gemma-4-26b-a4b-qat",
+                        "instructions": system_prompt_compacted + f"\n\nPrevious Summary: {previous_summary.content}",
+                        "input": inputs,
+                        "temperature": 0.5,
+                        "reasoning": {"effort": "none"},
+                        "tools": tools,
+                        "stream": True
+                    }
+                    print("\n=== LM STUDIO STREAMING RESPONSE WITH COMPACTED CONTEXT ===")
+                    print(request)
+                else:
+                    request = {
+                        "model": "google/gemma-4-26b-a4b-qat",
+                        "instructions": system_prompt,
+                        "input": inputs,
+                        "temperature": 0.5,
+                        "reasoning": {"effort": "none"},
+                        "tools": tools,
+                        "stream": True
+                    }
+                if temp_response_id is not None:
+                    request["previous_response_id"] = temp_response_id
+                response_stream = await client.responses.create(
+                    **request
+                )
 
-            async for chunk in response_stream:
-                print("\n--- Chunk ---")
-                print(chunk)
-                if chunk.type == "response.output_text.delta" and chunk.delta is not None:
-                    yield chunk
-                if chunk.type == "response.completed":
-                    final_chunk = chunk
-                    final_response = chunk.response
-                    break
+                inputs = []
+        
+                final_response = None
+                final_chunk = None
+
+                async for chunk in response_stream:
+                    print("\n--- Chunk ---")
+                    print(chunk)
+                    if chunk.type == "response.output_item.added" and chunk.item.type == "function_call":
+                        tool_calls[chunk.output_index] = chunk.item
+                    elif chunk.type == "response.function_call_arguments.delta":
+                        index = chunk.output_index
+
+                        if tool_calls[index]:
+                            tool_calls[index].arguments += chunk.delta
+                    elif chunk.type == "response.output_text.delta" and chunk.delta is not None:
+                        yield chunk
+                    elif chunk.type == "response.completed":
+                        final_chunk = chunk
+                        final_response = chunk.response
+                        break
+
+                if tool_calls:
+                    for index, tool_call in tool_calls.items():
+                            print(f"\n--- Tool Call ---\n{tool_call}\n")
+                            print(f"\n--- Tool Calls ---\n{tool_calls}\n")
+                            function_name = tool_call.name
+                            arguments = json.loads(tool_call.arguments)
+                            print(f"\n--- Tool Call ---\nFunction: {function_name}\nArguments: {arguments}\n")
+                            if function_name == "retrieve_memory":
+                                search_query = arguments.get("search_query", "")
+                                k = arguments.get("k", 3)
+                                from app.services.memory import MemoryService
+                                memory_service = MemoryService()
+                                relevant_memories = memory_service.retrieve_memory(search_query, k, 0)
+                                print(f"\n--- Retrieved Memories ---\n{relevant_memories}\n")
+                                inputs.append({
+                                    "type": "function_call_output",
+                                    "call_id": tool_call.call_id,
+                                    "output": json.dumps(relevant_memories),
+                                })
+                    temp_response_id = final_response.id
+                    continue
+
+                break
 
             print("\n=== LM STUDIO RESPONSE ===")
             print(f"ID: {final_response.id}")
