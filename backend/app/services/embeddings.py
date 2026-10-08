@@ -3,13 +3,18 @@ import os
 import dotenv
 from typing import List, Tuple
 import torch
+from functools import lru_cache
 
 dotenv.load_dotenv()
 
 HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
 
-model = SentenceTransformer('google/embeddinggemma-300m',
-                            use_auth_token=HUGGING_FACE_TOKEN)
+@lru_cache(maxsize=1)
+def get_embedding_model():
+    return SentenceTransformer('google/embeddinggemma-300m',
+                              use_auth_token=HUGGING_FACE_TOKEN)
+
+model = get_embedding_model()
 
 def get_embedding(text: str) -> list[float]:
     embedding = model.encode([str(text)])

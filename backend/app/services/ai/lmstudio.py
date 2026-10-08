@@ -4,7 +4,8 @@ import json
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from app.prompts.default import system_prompt, summarize_prompt, system_prompt_compacted
-from app.tools.memory import retrieve_memory
+from app.tools.memory import retrieve_memory, save_memory
+from app.schemas.summary import SummaryRead
 
 load_dotenv()
 client = AsyncOpenAI(base_url=os.getenv("LMSTUDIO_API_URL"), api_key="lm-studio")
@@ -63,7 +64,7 @@ class LMStudioAIProvider:
                 "role": "user",
                 "content": latest_user_message
             }]
-            tools = [retrieve_memory]
+            tools = [retrieve_memory, save_memory]
             while True:
                 tool_calls = {}
                 if (previous_summary is not None and previous_summary.content):
@@ -100,8 +101,8 @@ class LMStudioAIProvider:
                 final_chunk = None
 
                 async for chunk in response_stream:
-                    print("\n--- Chunk ---")
-                    print(chunk)
+                    # print("\n--- Chunk ---")
+                    # print(chunk)
                     if chunk.type == "response.output_item.added" and chunk.item.type == "function_call":
                         tool_calls[chunk.output_index] = chunk.item
                     elif chunk.type == "response.function_call_arguments.delta":
@@ -117,13 +118,14 @@ class LMStudioAIProvider:
                         break
 
                 if tool_calls:
+                    requires_next_request = False
                     for index, tool_call in tool_calls.items():
-                            print(f"\n--- Tool Call ---\n{tool_call}\n")
                             print(f"\n--- Tool Calls ---\n{tool_calls}\n")
                             function_name = tool_call.name
                             arguments = json.loads(tool_call.arguments)
                             print(f"\n--- Tool Call ---\nFunction: {function_name}\nArguments: {arguments}\n")
                             if function_name == "retrieve_memory":
+                                requires_next_request = True
                                 search_query = arguments.get("search_query", "")
                                 k = arguments.get("k", 3)
                                 from app.services.memory import MemoryService
@@ -135,10 +137,28 @@ class LMStudioAIProvider:
                                     "call_id": tool_call.call_id,
                                     "output": json.dumps(relevant_memories),
                                 })
-                    temp_response_id = final_response.id
-                    continue
+                            if function_name == "save_memory":
+                                requires_next_request = True
+                                category = arguments.get("category", "")
+                                tags = arguments.get("tags", [])
+                                content = arguments.get("content", "")
+                                from app.services.memory import MemoryService
+                                memory_service = MemoryService()
+                                memory_service.save_memory(category, tags, content)
+                                print(f"\n--- Saved Memory ---\nCategory: {category}\nTags: {tags}\nContent: {content}\n")
+                                inputs.append({
+                                    "type": "function_call_output",
+                                    "call_id": tool_call.call_id,
+                                    "output": json.dumps({"status": "success"}),
+                                })
+                    if requires_next_request:
+                        temp_response_id = final_response.id
+                        continue
 
                 break
+
+            print ("\n=== FINAL CHUNK ===")
+            print(final_chunk)
 
             print("\n=== LM STUDIO RESPONSE ===")
             print(f"ID: {final_response.id}")
@@ -160,11 +180,12 @@ class LMStudioAIProvider:
 
     async def generate_summary(self, messages: list[ProviderMessage], previous_summary: ProviderSummary | None) -> ProviderSummary:
         if previous_summary is not None: 
-            delattr(previous_summary, 'prompt_token_count')
-            delattr(previous_summary, 'token_count')
+            previous_summary_content = previous_summary.content
+        else:
+            previous_summary_content = None
         messages = [{"role": message.role.value, "content": message.content} for message in messages]
         input_object = json.dumps( {
-            "previous_summary": previous_summary if previous_summary else None,
+            "previous_summary": previous_summary_content,
             "messages": messages
         })
 

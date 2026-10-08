@@ -3,6 +3,7 @@ import os
 import dotenv
 import json
 import torch
+from uuid import uuid4 
 
 dotenv.load_dotenv()
 MEMORY_FILE_PATH = os.getenv("MEMORY_FILE_PATH")
@@ -28,3 +29,23 @@ class MemoryService:
             del memory["embedding"]
 
         return relevant_memories
+
+    def save_memory(self, category: str, tags: list, content: str):
+        new_memory = {
+            "id": str(uuid4()),
+            "category": category,
+            "tags": tags,
+            "content": content,
+            "embedding": get_embedding(content)
+        }
+
+        if os.path.exists(MEMORY_FILE_PATH):
+            with open(MEMORY_FILE_PATH, "r") as f:
+                memories = json.load(f)
+        else:
+            memories = []
+
+        memories.append(new_memory)
+
+        with open(MEMORY_FILE_PATH, "w") as f:
+            json.dump(memories, f, indent=2)
