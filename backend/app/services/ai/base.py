@@ -13,8 +13,7 @@ class ProviderMessage:
     role: MessageRole
     content: str
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class ProviderSummary:
     content: str
     prompt_token_count: int | None = None
