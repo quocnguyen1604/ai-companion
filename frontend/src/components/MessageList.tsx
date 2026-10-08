@@ -1,5 +1,6 @@
 import type { Message as MessageType } from "../types/chat";
 import { Message } from "./Message";
+import { useRef, useEffect } from "react";
 
 interface MessageListProps {
   messages: MessageType[];
@@ -7,6 +8,14 @@ interface MessageListProps {
 }
 
 export function MessageList({ messages, loading }: MessageListProps) {
+  const listRef = useRef<HTMLOListElement>(null);
+
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [messages]);
+
   if (loading)
     return (
       <div className="empty-state" role="status">
@@ -20,7 +29,7 @@ export function MessageList({ messages, loading }: MessageListProps) {
   }
 
   return (
-    <ol className="message-list" aria-label="Message history">
+    <ol ref={listRef} className="message-list" aria-label="Message history">
       {messages.map((message) => {
         return <Message key={message.id} message={message} />;
       })}
